@@ -11,6 +11,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
+	mclient "github.com/LibenHailu/grpc_file_stream/file_stream/file_client"
+	mainpb "github.com/LibenHailu/grpc_file_stream/file_stream/filepb"
 	pb "github.com/LibenHailu/peer_to_peer_file_share/peer/filepb"
 )
 
@@ -27,10 +29,7 @@ type file_server struct {
 func (*file_server) DownloadFile(req *pb.ServeFileRequest, res pb.FileService_DownloadFileServer) error {
 	bufferSize := 64 * 1024 //64KiB, tweak this as desired
 
-	curr_wd, _ := os.Getwd()
-	fmt.Println(curr_wd)
-
-	file, err := os.Open("./file/" + req.GetFileName())
+	file, err := os.Open("../file/" + req.GetFileName())
 	if err != nil {
 		fmt.Println(err)
 		return err
@@ -68,7 +67,31 @@ func InitFileServer() {
 
 	grpcServer = grpc.NewServer()
 	pb.RegisterFileServiceServer(grpcServer, new(file_server))
+
+	file, err := os.Open("../file")
+	if err != nil {
+		log.Fatalf("failed opening directory: %s", err)
+	}
+	defer file.Close()
+
+	list, _ := file.Readdirnames(0) // 0 to read all files and folders
+
+	cc, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
+
+	if err != nil {
+		log.Fatalf("could not found connect %v ", err)
+	}
+
+	defer cc.Close()
+
+	c := mainpb.NewFileServiceClient(cc)
+	fmt.Println(*ip)
+	fmt.Println(int32(*port))
+	fmt.Println(list)
+	mclient.RegisterPeers(c, *ip, int32(*port), list)
+
 	grpcServer.Serve(lis)
+
 	grpclog.Println("server shutdown...")
 
 }

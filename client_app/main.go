@@ -7,14 +7,14 @@ import (
 	"github.com/LibenHailu/peer_to_peer_file_share/peer/client_app/server"
 )
 
-var (
-	serverAddr = flag.String("server_addr", "127.0.0.1:10000", "The server address in the format of host:port")
-)
+// var (
+// 	serverAddr = flag.String("server_addr", "127.0.0.1:10000", "The server address in the format of host:port")
+// )
 
 func main() {
 	flag.Parse()
 	fmt.Println("start the program")
-	fmt.Println(*serverAddr)
+	// fmt.Println(*serverAddr)
 
 	for {
 		// start the app

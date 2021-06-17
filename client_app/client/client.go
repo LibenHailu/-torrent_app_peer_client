@@ -10,16 +10,19 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
+	mainpb "github.com/LibenHailu/grpc_file_stream/file_stream/filepb"
 	"github.com/LibenHailu/grpc_file_stream/file_stream/service/client"
 	pb "github.com/LibenHailu/peer_to_peer_file_share/peer/filepb"
 )
 
 var (
 	serverAddr *string
+	server     *string
 )
 
-func InitFileClient(t string, srvAddr *string) {
+func InitFileClient(srvAddr *string, svr *string) {
 	serverAddr = srvAddr
+	server = svr
 }
 
 func connect(srvAddr *string) *grpc.ClientConn {
@@ -39,45 +42,91 @@ func DownloadFile(fileName string) {
 	conn := connect(serverAddr)
 	fmt.Println(*serverAddr)
 	defer conn.Close()
-	c := pb.NewFileServiceClient(conn)
-	req := &pb.ServeFileRequest{
-		FileName: fileName,
-	}
-	resStream, err := c.DownloadFile(context.Background(), req)
-	if err != nil {
-		log.Fatalf("error downloading file: %v", err)
-	}
-	fileData := bytes.Buffer{}
-	fileSize := 0
-	for {
-		msg, err := resStream.Recv()
+	if *server == "server" {
 
-		if err == io.EOF {
-			// we've reached the end of stream
-			log.Println("recived all chunks")
-			break
+		c := mainpb.NewFileServiceClient(conn)
+		req := &mainpb.ServeFileRequest{
+			FileName: fileName,
 		}
+		resStream, err := c.DownloadFile(context.Background(), req)
 		if err != nil {
-			log.Fatalf("error while reciving chunk %v", err)
+			log.Fatalf("error downloading file: %v", err)
 		}
-		log.Printf("Response from GreetManyTimes: %v ", msg.ChunkData)
-		chunk := msg.GetChunkData()
-		size := len(chunk)
+		fileData := bytes.Buffer{}
+		fileSize := 0
+		for {
+			msg, err := resStream.Recv()
 
-		fileSize += size
+			if err == io.EOF {
+				// we've reached the end of stream
+				log.Println("recived all chunks")
+				break
+			}
+			if err != nil {
+				log.Fatalf("error while reciving chunk %v", err)
+			}
+			// log.Printf("Response from GreetManyTimes: %v ", msg.ChunkData)
+			chunk := msg.GetChunkData()
+			size := len(chunk)
 
-		// if fileSize > maxFileSize {
-		// 	return logError(status.Errorf(codes.InvalidArgument, "file is too large: %d > %d", fileSize, maxFileSize))
-		// }
+			fileSize += size
 
-		_, err = fileData.Write(chunk)
+			// if fileSize > maxFileSize {
+			// 	return logError(status.Errorf(codes.InvalidArgument, "file is too large: %d > %d", fileSize, maxFileSize))
+			// }
+
+			_, err = fileData.Write(chunk)
+			if err != nil {
+				log.Fatal("couldn't write chunk data: %v", err)
+			}
+
+		}
+
+		clientSave := client.NewDiskFileStore("C:/Users/Liben/go/src/github.com/LibenHailu/peer_to_peer_file_share/peer/file")
+		clientSave.Save(fileData, fileName)
+
+	} else {
+
+		c := pb.NewFileServiceClient(conn)
+		req := &pb.ServeFileRequest{
+			FileName: fileName,
+		}
+		resStream, err := c.DownloadFile(context.Background(), req)
 		if err != nil {
-			log.Fatal("couldn't write chunk data: %v", err)
+			log.Fatalf("error downloading file: %v", err)
 		}
+		fileData := bytes.Buffer{}
+		fileSize := 0
+		for {
+			msg, err := resStream.Recv()
+
+			if err == io.EOF {
+				// we've reached the end of stream
+				log.Println("recived all chunks")
+				break
+			}
+			if err != nil {
+				log.Fatalf("error while reciving chunk %v", err)
+			}
+			log.Printf("Response: %v ", msg.ChunkData)
+			chunk := msg.GetChunkData()
+			size := len(chunk)
+
+			fileSize += size
+
+			// if fileSize > maxFileSize {
+			// 	return logError(status.Errorf(codes.InvalidArgument, "file is too large: %d > %d", fileSize, maxFileSize))
+			// }
+
+			_, err = fileData.Write(chunk)
+			if err != nil {
+				log.Fatal("couldn't write chunk data: %v", err)
+			}
+
+		}
+
+		clientSave := client.NewDiskFileStore("C:/Users/Liben/go/src/github.com/LibenHailu/peer_to_peer_file_share/peer/file")
+		clientSave.Save(fileData, fileName)
 
 	}
-
-	clientSave := client.NewDiskFileStore("C:/Users/Liben/go/src/github.com/LibenHailu/peer_to_peer_file_share/peer/file")
-	clientSave.Save(fileData, fileName)
-
 }
